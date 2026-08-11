@@ -51,23 +51,8 @@ jobs:
           fi
           sha256sum "$APK" | tee "${APK}.sha256"
 
-      - name: Create or update v0.0.64 release
-        shell: bash
-        run: |
-          set -euo pipefail
-          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$TAG" release-artifacts/* -R "$GITHUB_REPOSITORY" --clobber
-          else
-            gh release create "$TAG" \
-              -R "$GITHUB_REPOSITORY" \
-              --target c569cc4f8e869c57d41d53dd55c7fd655fcdfd02 \
-              --title "Moataz AI v0.0.64" \
-              --notes "Moataz AI v0.0.64\n\n- Android 8.0+ (API 26+)\n- arm64-v8a\n- Signed install APK\n- applicationId: ai.moataz" \
-              release-artifacts/*
-          fi
-
-      - name: Remove one-shot publisher
-        if: success()
+      - name: Clean one-shot publisher before tagging
+        id: clean
         shell: bash
         run: |
           set -euo pipefail
@@ -76,3 +61,22 @@ jobs:
           git rm .github/workflows/publish-64-once.yml
           git commit -m "ci: remove one-shot release publisher"
           git push origin HEAD:main
+          TARGET_SHA="$(git rev-parse HEAD)"
+          echo "target_sha=$TARGET_SHA" >> "$GITHUB_OUTPUT"
+          echo "Release target: $TARGET_SHA"
+
+      - name: Create or update v0.0.64 release
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARGET_SHA="${{ steps.clean.outputs.target_sha }}"
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" release-artifacts/* -R "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" \
+              -R "$GITHUB_REPOSITORY" \
+              --target "$TARGET_SHA" \
+              --title "Moataz AI v0.0.64" \
+              --notes "Moataz AI v0.0.64\n\n- Android 8.0+ (API 26+)\n- arm64-v8a\n- Signed install APK\n- applicationId: ai.moataz" \
+              release-artifacts/*
+          fi
