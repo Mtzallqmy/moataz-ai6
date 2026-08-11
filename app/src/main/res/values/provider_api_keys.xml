@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="api_key_pool_section_title">API Keys</string>
+    <string name="api_key_pool_section_description">Manage multiple API keys for this provider. Keys share the provider base URL, models, and request settings.</string>
+    <string name="api_key_add">Add API key</string>
+    <string name="api_key_strategy_label">API key strategy</string>
+    <string name="api_key_failover_on_rate_limit">Fail over on rate limits</string>
+    <string name="api_key_failover_on_rate_limit_description">When enabled, a 429 response may try another enabled key. Use this only when permitted by the provider.</string>
+    <string name="api_key_enabled">Enabled</string>
+    <string name="api_key_disabled">Disabled</string>
+    <string name="api_key_label_hint">Key name (optional)</string>
+    <string name="api_key_key_hint">API Key</string>
+    <string name="api_key_primary">Primary</string>
+    <string name="api_key_test">Test</string>
+    <string name="api_key_test_success">Key works</string>
+    <string name="api_key_delete">Delete</string>
+    <string name="api_key_test_failed">Key test failed</string>
+</resources>
