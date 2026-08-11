@@ -47,7 +47,7 @@ Moataz AI هو تخصيص وتطوير لمشروع Android قائم، وليس 
 
 ## متطلبات البناء
 
-- Android SDK مع `compileSdk/targetSdk 37` و`minSdk 26`.
+- Android SDK مع `compileSdk/targetSdk 37` و`minSdk 26`. في GitHub Actions تُثبّت منصة API 37 من قناة Android SDK preview لأن `sdkmanager` قد لا يعرضها في القناة المستقرة بعد.
 - JDK 17.
 - Gradle Wrapper المرفق (`Gradle 9.5.0`).
 - Android Gradle Plugin `9.3.1` وKotlin `2.4.10` كما هي مثبتة في المشروع.
@@ -80,7 +80,7 @@ keyPassword=...
 يوجد مساران داخل `.github/workflows/`:
 
 - `android-build.yml`: يعمل على `push` و`pull_request` و`workflow_dispatch`. يثبت JDK/Android SDK/Bun/pnpm، يشغّل typecheck واختبارات JVM، ثم يبني Debug APK وRelease APK وRelease AAB ويرفعها كـArtifacts.
-- `android-release.yml`: يعمل على tag بشكل `vX.Y.Z`، وعند نشر GitHub Release، ويمكن تشغيله يدويًا مع tag. يبني Release، يرفع Artifact، ثم ينشئ/يحدّث GitHub Release ويرفق APK/AAB.
+- `android-release.yml`: يعمل عند دفع tag بشكل `vX.Y.Z`، ويمكن تشغيله يدويًا مع tag موجود مسبقًا. يبني Release، يرفع Artifact، ثم ينشئ/يحدّث GitHub Release ويرفق APK/AAB.
 
 ### Secrets الخاصة بالتوقيع
 
@@ -112,43 +112,41 @@ keyPassword=...
 
 `moatazai://`
 
-وتشمل callbacks الداخلية لـCodex وGemini، واختصار التطبيق، وMCP OAuth callback. Codex/Gemini يستخدمان أيضًا callback محليًا أثناء OAuth قبل إعادة النتيجة إلى deep link الداخلي. تغيير MCP redirect URI عن أي تسجيل سابق يحتاج إعادة تفويض/تسجيل، وقد يحتاج إعدادًا خارجيًا إذا كان مزوّد MCP يفرض Redirect URI ثابتًا. التفاصيل الدقيقة لمسار الترحيل موجودة في `docs/INTEGRATIONS.md`.
+وتشمل callbacks الداخلية لـCodex وGemini، واختصار التطبيق، وMCP OAuth callback. Codex/Gemini يستخدمان أيضًا callback محليًا أثناء OAuth قبل إعادة النتيجة إلى deep link الداخلي. تغيير MCP redirect URI عن أي تسجيل سابق يحتاج إعادة تسجيل/إعادة تفويض خارجي. راجع `docs/INTEGRATIONS.md` قبل نشر النسخة إذا كنت تستخدم OAuth/MCP أو أتمتة خارجية.
 
-كما أصبحت Intent Actions العامة:
+الأتمتة الخارجية أصبحت تستخدم action strings تحت `ai.moataz.*`. أي Tasker/MacroDroid/ADB setup قديم يجب تحديثه يدويًا. لم تُرخَّص الحزم الخارجية تلقائيًا ولم تُعطّل Trusted package checks.
 
-- `ai.moataz.RUN_TASK`
-- `ai.moataz.RUN_CHAT`
-- `ai.moataz.workflow.GEOFENCE_TRANSITION`
+## الهوية البصرية
 
-أي إعدادات قديمة في Tasker/MacroDroid/ADB تعتمد القيم السابقة يجب تحديثها يدويًا.
-
-## الشعار والأيقونات
-
-تم إنشاء هوية أصلية لـ**Moataz AI** بعلامة M تقنية متدرجة، وتطبيقها على Launcher/Adaptive/Monochrome icons، Splash، صفحة About، الترحيب في المحادثة، avatar الافتراضي للمساعد وأيقونة الإشعارات. الأصول الأساسية هي:
+الأيقونة الحالية أصل Moataz AI جديد وليست شعار RikkaHub القديم. ملفات الهوية الرئيسية موجودة في:
 
 - `app/src/main/res/drawable/moataz_ai_mark.xml`
-- `app/src/main/res/drawable/moataz_ai_mark_monochrome.xml`
-- `app/src/main/res/drawable/moataz_splash_background.xml`
-- `app/src/main/res/drawable/small_icon.xml`
+- `app/src/main/res/drawable/moataz_ai_assistant_avatar.xml`
+- `app/src/main/res/drawable/ic_stat_moataz_ai.xml`
+- `app/src/main/res/drawable/ic_launcher_foreground.xml`
+- `app/src/main/res/drawable/ic_launcher_monochrome.xml`
+- `app/src/main/res/drawable/ic_launcher_background.xml`
 - `app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml`
-- `app/src/main/res/values-v31/themes.xml`
+- `app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml`
 - `docs/icon.svg`
 
-تظل Adaptive Icon واضحة في Light/Dark لأن خلفية الأيقونة مستقلة، بينما واجهة التطبيق نفسها تواصل استخدام Material 3 وDynamic/Light/Dark themes الأصلية.
+تستخدم شاشة البداية اسم **Moataz AI** مع عبارة «مساعدك الذكي، أقرب إليك»، وتعرض شاشة المحادثة الفارغة رسالة ترحيب واحدة فقط قبل بدء المحتوى، بينما يستخدم مؤشر الانتظار/التوليد هوية Moataz AI بدون تعطيل Streaming.
 
-## التخزين والأسرار
+## ما لا يجب رفعه إلى GitHub
 
-مفاتيح OpenAI/OpenRouter/NVIDIA/Hugging Face/Telegram وبيانات SSH لا توضع في Source Code أو GitHub Actions. يستخدم مزوّدو LLM نفس آلية تخزين إعدادات المزوّدات الموجودة في المشروع. Custom Headers الحساسة لا تُطبع عمدًا في سجلات الطلبات، وAuthorization لا يُكرر إذا حدده المستخدم صراحةً في Custom Headers.
+تم تحديث `.gitignore` لاستبعاد ملفات البيئة المحلية والتوقيع والأسرار والنماذج المحلية الكبيرة، بما في ذلك `local.properties` وملفات keystore/JKS/P12/PFX و`.env*` و`secrets.properties` وملفات `.gguf/.onnx/.bin` تحت مسارات النماذج المحلية. لا تضف API Keys أو Telegram tokens أو SSH passwords إلى Source أو GitHub Actions.
 
-## الأصل والترخيص
+## الترخيص والمصدر
 
 Moataz AI **مبني على/مشتق من RikkaHub Agent**، والذي هو بدوره fork من **RikkaHub**. لم يُكتب المشروع بالكامل من الصفر، ولا يدّعي هذا الفرع ذلك. يُحافظ هذا المستودع على ملف `LICENSE` وترخيص **GNU AGPL-3.0** والتزامات copyleft والإتاحة المصدرية المنطبقة على العمل المشتق.
 
-المشاريع الأصلية التي يجب نسب الفضل إليها تشمل:
+المصادر الأصلية ذات الصلة:
 
 - RikkaHub: `https://github.com/rikkahub/rikkahub`
 - RikkaHub Agent: المشروع الذي بُني عليه هذا التخصيص مباشرةً.
-- Termux وllama.cpp والمكتبات والمشاريع الأخرى المذكورة في الكود وتراخيص الطرف الثالث الخاصة بها.
+
+**تم تطوير وتعديل Moataz AI بواسطة معتز العلقمي.**  
+**Developed and customized by Moataz Al-Alqami.**
 
 هذا التخصيص غير تابع رسميًا لمشرفي RikkaHub أو RikkaHub Agent. راجع `LICENSE` قبل إعادة التوزيع أو تقديم التطبيق كخدمة شبكية، واحفظ إشعارات حقوق النشر والتراخيص المطلوبة.
 
