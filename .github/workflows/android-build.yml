@@ -60,11 +60,6 @@ jobs:
           node-version: "24"
           package-manager-cache: false
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Set up pnpm
         uses: pnpm/action-setup@v6
         with:
@@ -99,7 +94,23 @@ jobs:
           chmod 600 .ci/moataz-release.jks local.properties
 
       - name: Unit tests
-        run: ./gradlew --no-daemon :ai:testDebugUnitTest :app:testDebugUnitTest
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p .ci-logs
+          ./gradlew --no-daemon --stacktrace :ai:testDebugUnitTest :app:testDebugUnitTest 2>&1 | tee .ci-logs/unit-tests.log
+
+      - name: Upload test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: moataz-ai-test-diagnostics
+          path: |
+            .ci-logs/unit-tests.log
+            ai/build/reports/tests/**
+            app/build/reports/tests/**
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Build Debug APK
         run: ./gradlew --no-daemon :app:assembleDebug
@@ -130,4 +141,4 @@ jobs:
 
       - name: Clean signing material
         if: always()
-        run: rm -rf .ci local.properties
+        run: rm -rf .ci .ci-logs local.properties
