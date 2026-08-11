@@ -47,18 +47,16 @@ jobs:
           set -euo pipefail
           BASE=f8be99dc67888bedcbb837a190e5f8200f77ab8e
 
-          # Keep the currently-authorized workflow files byte-for-byte unchanged
-          # in this commit. Production workflows are installed separately after
-          # the source import, avoiding GitHub App workflow-scope restrictions.
           git show HEAD:.github/workflows/android-build.yml > /tmp/bootstrap-android-build.yml
           git show HEAD:.github/workflows/bootstrap-import.yml > /tmp/bootstrap-import.yml
 
           git remote add upstream https://github.com/ExTV/rikkahub-agent.git 2>/dev/null || git remote set-url upstream https://github.com/ExTV/rikkahub-agent.git
           git fetch --no-tags upstream "$BASE"
 
-          # Populate the upstream tree while keeping the current bootstrap commit
-          # as the parent. This makes the final push a normal fast-forward commit.
-          git read-tree --reset -u "$BASE"
+          # Replace the tracked source tree with the audited upstream baseline,
+          # while keeping the current bootstrap HEAD as the commit parent.
+          git rm -rf .
+          git checkout "$BASE" -- .
 
           git apply --check /tmp/moataz.patch
           git apply /tmp/moataz.patch
@@ -66,7 +64,8 @@ jobs:
           cp /tmp/ExternalAutomationDispatcher.kt app/src/main/java/me/rerere/rikkahub/automation/ExternalAutomationDispatcher.kt
           tar -xJf /tmp/moataz-new-files.tar.xz
 
-          # Keep workflows unchanged for this GitHub-token push.
+          # Preserve the exact workflow tree from HEAD so this token never
+          # creates, changes, or deletes a workflow in the source-import commit.
           rm -rf .github/workflows
           mkdir -p .github/workflows
           cp /tmp/bootstrap-android-build.yml .github/workflows/android-build.yml
