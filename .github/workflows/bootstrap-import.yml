@@ -1,0 +1,106 @@
+name: Bootstrap Moataz AI
+
+on:
+  push:
+    paths:
+      - ".github/workflows/bootstrap-import.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout bootstrap payload
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reassemble and verify audited payload
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat .bootstrap/patch/patch-* > /tmp/moataz.patch.xz.b64
+          base64 -d /tmp/moataz.patch.xz.b64 > /tmp/moataz.patch.xz
+          echo "d1f7dcd82ac05c50cc759245ca9b7b615ef3928b1450f8e12cd418484cef967a  /tmp/moataz.patch.xz" | sha256sum -c -
+          xz -dc /tmp/moataz.patch.xz > /tmp/moataz.patch
+
+          cat .bootstrap/patch/dispatcher-* > /tmp/dispatcher.kt.xz.b64
+          base64 -d /tmp/dispatcher.kt.xz.b64 > /tmp/dispatcher.kt.xz
+          echo "9978488a3f5fc67fa953d6473df96a8ef3c827565edc5f692cdeda4b32f5ddeb  /tmp/dispatcher.kt.xz" | sha256sum -c -
+          xz -dc /tmp/dispatcher.kt.xz > /tmp/ExternalAutomationDispatcher.kt
+
+          cat .bootstrap/patch/newfiles-* > /tmp/moataz-new-files.tar.xz.b64
+          base64 -d /tmp/moataz-new-files.tar.xz.b64 > /tmp/moataz-new-files.tar.xz
+          echo "85136c5d476db32b57e8fdeb2ed23b8e01e56520f329485acbbc869980ae0598  /tmp/moataz-new-files.tar.xz" | sha256sum -c -
+          tar -tJf /tmp/moataz-new-files.tar.xz >/dev/null
+
+      - name: Import audited upstream base and Moataz AI changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git remote add upstream https://github.com/ExTV/rikkahub-agent.git 2>/dev/null || git remote set-url upstream https://github.com/ExTV/rikkahub-agent.git
+          git fetch --no-tags upstream f8be99dc67888bedcbb837a190e5f8200f77ab8e
+          git checkout -B main f8be99dc67888bedcbb837a190e5f8200f77ab8e
+
+          rm -rf .bootstrap
+          rm -f .github/workflows/bootstrap-import.yml
+
+          git apply --check /tmp/moataz.patch
+          git apply /tmp/moataz.patch
+
+          rm -f \
+            app/src/main/res/mipmap-hdpi/ic_launcher.png \
+            app/src/main/res/mipmap-hdpi/ic_launcher_background.png \
+            app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png \
+            app/src/main/res/mipmap-hdpi/ic_launcher_monochrome.png \
+            app/src/main/res/mipmap-mdpi/ic_launcher.png \
+            app/src/main/res/mipmap-mdpi/ic_launcher_background.png \
+            app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png \
+            app/src/main/res/mipmap-mdpi/ic_launcher_monochrome.png \
+            app/src/main/res/mipmap-xhdpi/ic_launcher.png \
+            app/src/main/res/mipmap-xhdpi/ic_launcher_background.png \
+            app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.png \
+            app/src/main/res/mipmap-xhdpi/ic_launcher_monochrome.png \
+            app/src/main/res/mipmap-xxhdpi/ic_launcher.png \
+            app/src/main/res/mipmap-xxhdpi/ic_launcher_background.png \
+            app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.png \
+            app/src/main/res/mipmap-xxhdpi/ic_launcher_monochrome.png \
+            app/src/main/res/mipmap-xxxhdpi/ic_launcher.png \
+            app/src/main/res/mipmap-xxxhdpi/ic_launcher_background.png \
+            app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png \
+            app/src/main/res/mipmap-xxxhdpi/ic_launcher_monochrome.png \
+            docs/icon.png
+
+          cp /tmp/ExternalAutomationDispatcher.kt \
+            app/src/main/java/me/rerere/rikkahub/automation/ExternalAutomationDispatcher.kt
+          tar -xJf /tmp/moataz-new-files.tar.xz
+
+          test ! -e .bootstrap
+          test ! -e .github/workflows/bootstrap-import.yml
+          grep -q 'applicationId = "ai.moataz"' app/build.gradle.kts
+          grep -q 'rootProject.name = "moataz-ai"' settings.gradle.kts
+          grep -q 'Moataz AI' README.md
+          test -f .github/workflows/android-build.yml
+          test -f .github/workflows/android-release.yml
+          test -f ai/src/main/java/me/rerere/ai/provider/ApiKeyPool.kt
+          test -f app/src/main/res/drawable/moataz_ai_mark.xml
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: establish Moataz AI v0.1"
+          git push --force origin main
+
+      - name: Start Android verification build
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run android-build.yml --repo "$GITHUB_REPOSITORY" --ref main
