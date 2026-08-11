@@ -8,6 +8,8 @@ on:
     branches:
       - main
     types: [opened, synchronize, reopened]
+  schedule:
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -16,7 +18,7 @@ permissions:
 
 jobs:
   import:
-    if: ${{ github.event_name == 'pull_request' || !contains(github.event.head_commit.message, 'feat: establish Moataz AI v0.1') }}
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'schedule' || !contains(github.event.head_commit.message, 'feat: establish Moataz AI v0.1') }}
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
