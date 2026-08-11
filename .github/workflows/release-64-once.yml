@@ -1,0 +1,35 @@
+name: Trigger Corrected Android 8 Arm64 Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/release-64-once.yml"
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  trigger:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Dispatch corrected release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run android-release.yml -f tag=v0.0.64
+
+      - name: Remove one-shot trigger
+        uses: actions/checkout@v7
+        with:
+          ref: main
+      - name: Delete trigger file
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/release-64-once.yml
+          git commit -m "ci: remove one-shot release trigger"
+          git push origin HEAD:main
