@@ -51,19 +51,14 @@ jobs:
           git remote add upstream https://github.com/ExTV/rikkahub-agent.git 2>/dev/null || git remote set-url upstream https://github.com/ExTV/rikkahub-agent.git
           git fetch --no-tags upstream "$BASE"
 
-          echo "::notice::Switching worktree to audited upstream baseline"
           git checkout --detach "$BASE"
-          echo "::notice::Restoring Moataz repository parent"
           git reset --soft "$ORIGINAL_HEAD"
-
-          echo "::notice::Applying audited Moataz patch"
           git apply --check /tmp/moataz.patch
           git apply /tmp/moataz.patch
           rm -f app/src/main/res/mipmap-{h,m,x,xx,xxx}dpi/ic_launcher*.png docs/icon.png || true
           cp /tmp/ExternalAutomationDispatcher.kt app/src/main/java/me/rerere/rikkahub/automation/ExternalAutomationDispatcher.kt
           tar -xJf /tmp/moataz-new-files.tar.xz
 
-          echo "::notice::Restoring workflow files unchanged"
           rm -rf .github/workflows
           mkdir -p .github/workflows
           cp /tmp/bootstrap-android-build.yml .github/workflows/android-build.yml
@@ -75,10 +70,9 @@ jobs:
           test -f ai/src/main/java/me/rerere/ai/provider/ApiKeyPool.kt
           test -f app/src/main/res/drawable/moataz_ai_mark.xml
 
-          echo "::notice::Committing production source"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git status --short | head -200
+          git status --short
           git commit -m "feat: establish Moataz AI v0.1 source"
           git push origin HEAD:main
