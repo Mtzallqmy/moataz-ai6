@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="api_key_pool_section_title">مفاتيح API</string>
+    <string name="api_key_pool_section_description">إدارة عدة مفاتيح API لهذا المزود. تشترك المفاتيح في رابط API الأساسي والنماذج وإعدادات الطلب.</string>
+    <string name="api_key_add">إضافة مفتاح API</string>
+    <string name="api_key_strategy_label">استراتيجية استخدام مفاتيح API</string>
+    <string name="api_key_failover_on_rate_limit">التبديل عند تجاوز حد الطلبات</string>
+    <string name="api_key_failover_on_rate_limit_description">عند التفعيل، يمكن لخطأ 429 تجربة مفتاح مفعّل آخر. استخدم ذلك فقط إذا كانت سياسة المزود تسمح به.</string>
+    <string name="api_key_enabled">مفعّل</string>
+    <string name="api_key_disabled">معطّل</string>
+    <string name="api_key_label_hint">اسم المفتاح (اختياري)</string>
+    <string name="api_key_key_hint">مفتاح API</string>
+    <string name="api_key_primary">المفتاح الأساسي</string>
+    <string name="api_key_test">اختبار</string>
+    <string name="api_key_test_success">المفتاح يعمل</string>
+    <string name="api_key_delete">حذف</string>
+    <string name="api_key_test_failed">فشل اختبار المفتاح</string>
+</resources>
