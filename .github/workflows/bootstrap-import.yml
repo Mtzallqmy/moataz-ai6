@@ -16,15 +16,20 @@ permissions:
   contents: write
   actions: write
 
+concurrency:
+  group: moataz-bootstrap-import
+  cancel-in-progress: false
+
 jobs:
   import:
     if: ${{ github.event_name == 'pull_request' || github.event_name == 'schedule' || !contains(github.event.head_commit.message, 'feat: establish Moataz AI v0.1') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout bootstrap payload
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -45,7 +50,7 @@ jobs:
 
           cat .bootstrap/patch/newfiles-* > /tmp/moataz-new-files.tar.xz.b64
           base64 -d /tmp/moataz-new-files.tar.xz.b64 > /tmp/moataz-new-files.tar.xz
-          echo "85136c5d476db32b57e8fdeb2ed23b8e01e56520f329485acbbc869980ae0598  /tmp/moataz-new-files.tar.xz" | sha256sum -c -
+          echo "967757399bbc575d89eaf6f277b5708f5ec7ff526fed8ea76762c8f0a17c3161  /tmp/moataz-new-files.tar.xz" | sha256sum -c -
           tar -tJf /tmp/moataz-new-files.tar.xz >/dev/null
 
       - name: Import audited upstream base and Moataz AI changes
@@ -86,8 +91,7 @@ jobs:
             app/src/main/res/mipmap-xxxhdpi/ic_launcher_monochrome.png \
             docs/icon.png
 
-          cp /tmp/ExternalAutomationDispatcher.kt \
-            app/src/main/java/me/rerere/rikkahub/automation/ExternalAutomationDispatcher.kt
+          cp /tmp/ExternalAutomationDispatcher.kt app/src/main/java/me/rerere/rikkahub/automation/ExternalAutomationDispatcher.kt
           tar -xJf /tmp/moataz-new-files.tar.xz
 
           test ! -e .bootstrap
@@ -106,8 +110,18 @@ jobs:
           git commit -m "feat: establish Moataz AI v0.1"
           git push --force origin main
 
-      - name: Start Android verification build
+      - name: Dispatch real Android build
         shell: bash
         run: |
           set -euo pipefail
-          gh workflow run android-build.yml --repo "$GITHUB_REPOSITORY" --ref main
+          endpoint="repos/${GITHUB_REPOSITORY}/actions/workflows/android-build.yml/dispatches"
+          for attempt in 1 2 3 4 5 6; do
+            if gh api -X POST "$endpoint" -f ref=main >/dev/null 2>&1; then
+              echo "Android Build dispatched successfully."
+              exit 0
+            fi
+            echo "Workflow registration not ready yet (attempt $attempt/6)."
+            sleep 5
+          done
+          echo "The production tree was pushed, but Android Build could not be dispatched." >&2
+          exit 1
