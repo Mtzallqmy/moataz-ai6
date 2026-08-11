@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing release tag, e.g. v0.1.0"
+        description: "Release tag to create, e.g. v0.1.0"
         required: true
         type: string
 
@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 90
     env:
       MOATAZ_KEYSTORE_BASE64: ${{ secrets.MOATAZ_KEYSTORE_BASE64 }}
@@ -30,7 +30,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
 
     steps:
-      - name: Resolve tag
+      - name: Resolve version
         id: version
         shell: bash
         run: |
@@ -56,11 +56,12 @@ jobs:
           echo "name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
           echo "code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
 
-      - name: Checkout tag
+      - name: Checkout source
         uses: actions/checkout@v7
         with:
-          ref: ${{ steps.version.outputs.tag }}
+          ref: ${{ github.event_name == 'push' && github.ref_name || 'main' }}
           submodules: recursive
+          fetch-depth: 0
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -92,11 +93,6 @@ jobs:
           node-version: "24"
           package-manager-cache: false
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Set up pnpm
         uses: pnpm/action-setup@v6
         with:
@@ -111,13 +107,13 @@ jobs:
         working-directory: web-ui
         run: pnpm run typecheck
 
-      - name: Configure release signing
+      - name: Configure signing
         id: signing
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p .ci
           if [[ -n "$MOATAZ_KEYSTORE_BASE64" && -n "$MOATAZ_KEYSTORE_PASSWORD" && -n "$MOATAZ_KEY_ALIAS" && -n "$MOATAZ_KEY_PASSWORD" ]]; then
-            mkdir -p .ci
             printf '%s' "$MOATAZ_KEYSTORE_BASE64" | base64 --decode > .ci/moataz-release.jks
             {
               printf 'storeFile=%s\n' "$GITHUB_WORKSPACE/.ci/moataz-release.jks"
@@ -126,43 +122,87 @@ jobs:
               printf 'keyPassword=%s\n' "$MOATAZ_KEY_PASSWORD"
             } > local.properties
             chmod 600 .ci/moataz-release.jks local.properties
-            echo "signed=true" >> "$GITHUB_OUTPUT"
+            echo "mode=production" >> "$GITHUB_OUTPUT"
           else
-            echo "signed=false" >> "$GITHUB_OUTPUT"
+            # Direct-install fallback only. The private key is destroyed at the end of the job.
+            # Configure the four MOATAZ_* signing secrets for stable production updates.
+            keytool -genkeypair -noprompt \
+              -keystore .ci/moataz-install.jks \
+              -storepass moataz64 \
+              -keypass moataz64 \
+              -alias moataz-install \
+              -keyalg RSA -keysize 3072 -validity 3650 \
+              -dname "CN=Moataz AI CI Install, OU=Android, O=Moataz AI, C=US"
+            chmod 600 .ci/moataz-install.jks
+            echo "mode=ci-install" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Unit tests
         run: ./gradlew --no-daemon :ai:testDebugUnitTest :app:testDebugUnitTest
 
-      - name: Build release
+      - name: Build arm64 release APK
         run: >-
           ./gradlew --no-daemon
           -PMOATAZ_VERSION_NAME=${{ steps.version.outputs.name }}
           -PMOATAZ_VERSION_CODE=${{ steps.version.outputs.code }}
-          :app:assembleRelease :app:bundleRelease
+          :app:assembleRelease
 
-      - name: Prepare release assets
+      - name: Build release AAB
+        run: >-
+          ./gradlew --no-daemon
+          -PMOATAZ_VERSION_NAME=${{ steps.version.outputs.name }}
+          -PMOATAZ_VERSION_CODE=${{ steps.version.outputs.code }}
+          :app:bundleRelease
+
+      - name: Prepare and verify Android 8+ arm64 APK
+        id: assets
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p release-artifacts
-          APK="$(find app/build/outputs/apk/release -type f -name '*universal*.apk' -print -quit)"
-          if [[ -z "$APK" ]]; then APK="$(find app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"; fi
-          AAB="$(find app/build/outputs/bundle/release -type f -name '*.aab' -print -quit)"
-          [[ -n "$APK" ]] || { echo 'Release APK not found' >&2; exit 1; }
-          [[ -n "$AAB" ]] || { echo 'Release AAB not found' >&2; exit 1; }
-          if [[ "${{ steps.signing.outputs.signed }}" == "true" ]]; then
-            cp "$APK" "release-artifacts/moataz-ai-${{ steps.version.outputs.tag }}.apk"
-            cp "$AAB" "release-artifacts/moataz-ai-${{ steps.version.outputs.tag }}.aab"
+          APK="$(find app/build/outputs/apk/release -type f -name '*arm64-v8a*.apk' -print -quit)"
+          [[ -n "$APK" ]] || { echo 'arm64-v8a release APK not found' >&2; find app/build/outputs/apk/release -type f -maxdepth 2 -print || true; exit 1; }
+
+          FINAL_APK="release-artifacts/moataz-ai-${{ steps.version.outputs.tag }}-android8-arm64.apk"
+          if [[ "${{ steps.signing.outputs.mode }}" == "production" ]]; then
+            cp "$APK" "$FINAL_APK"
           else
-            cp "$APK" "release-artifacts/moataz-ai-${{ steps.version.outputs.tag }}-unsigned.apk"
-            cp "$AAB" "release-artifacts/moataz-ai-${{ steps.version.outputs.tag }}-unsigned.aab"
+            ALIGNED="release-artifacts/moataz-ai-${{ steps.version.outputs.tag }}-android8-arm64-aligned.apk"
+            "$ANDROID_HOME/build-tools/36.0.0/zipalign" -f -p 4 "$APK" "$ALIGNED"
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign \
+              --ks .ci/moataz-install.jks \
+              --ks-key-alias moataz-install \
+              --ks-pass pass:moataz64 \
+              --key-pass pass:moataz64 \
+              --out "$FINAL_APK" \
+              "$ALIGNED"
+            rm -f "$ALIGNED"
           fi
+
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$FINAL_APK"
+          BADGING="$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$FINAL_APK")"
+          printf '%s\n' "$BADGING" | grep -F "sdkVersion:'26'" >/dev/null || {
+            echo 'Release does not declare minSdk 26 (Android 8.0)' >&2
+            printf '%s\n' "$BADGING" | grep -E 'sdkVersion|targetSdkVersion' || true
+            exit 1
+          }
+          unzip -l "$FINAL_APK" | grep -q 'lib/arm64-v8a/' || { echo 'arm64 native libraries missing' >&2; exit 1; }
+          if unzip -l "$FINAL_APK" | grep -q 'lib/x86_64/'; then
+            echo 'x86_64 libraries unexpectedly present in arm64 APK' >&2
+            exit 1
+          fi
+
+          AAB="$(find app/build/outputs/bundle/release -type f -name '*.aab' -print -quit)"
+          if [[ "${{ steps.signing.outputs.mode }}" == "production" && -n "$AAB" ]]; then
+            cp "$AAB" "release-artifacts/moataz-ai-${{ steps.version.outputs.tag }}.aab"
+          fi
+          sha256sum "$FINAL_APK" > "$FINAL_APK.sha256"
+          echo "apk=$FINAL_APK" >> "$GITHUB_OUTPUT"
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: moataz-ai-${{ steps.version.outputs.tag }}
+          name: moataz-ai-${{ steps.version.outputs.tag }}-android8-arm64
           path: release-artifacts/*
           if-no-files-found: error
 
@@ -172,7 +212,10 @@ jobs:
           set -euo pipefail
           TAG="${{ steps.version.outputs.tag }}"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" --title "Moataz AI $TAG" --generate-notes
+            gh release create "$TAG" \
+              --target "$GITHUB_SHA" \
+              --title "Moataz AI $TAG" \
+              --notes "Moataz AI for Android 8.0+ (minSdk 26). Direct-download APK is arm64-v8a. If production signing secrets are not configured, the APK is CI-install signed for direct installation; configure the MOATAZ signing secrets before relying on in-place upgrades between releases."
           fi
           gh release upload "$TAG" release-artifacts/* --clobber
 
