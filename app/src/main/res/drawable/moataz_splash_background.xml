@@ -1,4 +1,12 @@
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="#061C52" />
-    <item android:gravity="center" android:width="144dp" android:height="144dp" android:drawable="@drawable/moataz_ai_mark" />
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#061C52" />
+        </shape>
+    </item>
+    <item
+        android:drawable="@drawable/moataz_ai_mark"
+        android:gravity="center"
+        android:width="144dp"
+        android:height="144dp" />
 </layer-list>
