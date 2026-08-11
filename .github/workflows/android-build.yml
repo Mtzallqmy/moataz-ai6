@@ -46,17 +46,19 @@ jobs:
         run: |
           set -euo pipefail
           BASE=f8be99dc67888bedcbb837a190e5f8200f77ab8e
+          ORIGINAL_HEAD=$(git rev-parse HEAD)
 
-          git show HEAD:.github/workflows/android-build.yml > /tmp/bootstrap-android-build.yml
-          git show HEAD:.github/workflows/bootstrap-import.yml > /tmp/bootstrap-import.yml
+          git show "$ORIGINAL_HEAD":.github/workflows/android-build.yml > /tmp/bootstrap-android-build.yml
+          git show "$ORIGINAL_HEAD":.github/workflows/bootstrap-import.yml > /tmp/bootstrap-import.yml
 
           git remote add upstream https://github.com/ExTV/rikkahub-agent.git 2>/dev/null || git remote set-url upstream https://github.com/ExTV/rikkahub-agent.git
           git fetch --no-tags upstream "$BASE"
 
-          # Replace the tracked source tree with the audited upstream baseline,
-          # while keeping the current bootstrap HEAD as the commit parent.
-          git rm -rf .
-          git checkout "$BASE" -- .
+          # Put the audited upstream tree in the index/worktree, then move HEAD
+          # back to the current repository commit without touching that tree.
+          # The new source commit therefore remains a normal child of main.
+          git checkout --detach "$BASE"
+          git reset --soft "$ORIGINAL_HEAD"
 
           git apply --check /tmp/moataz.patch
           git apply /tmp/moataz.patch
@@ -64,8 +66,7 @@ jobs:
           cp /tmp/ExternalAutomationDispatcher.kt app/src/main/java/me/rerere/rikkahub/automation/ExternalAutomationDispatcher.kt
           tar -xJf /tmp/moataz-new-files.tar.xz
 
-          # Preserve the exact workflow tree from HEAD so this token never
-          # creates, changes, or deletes a workflow in the source-import commit.
+          # Keep workflow files byte-for-byte identical to ORIGINAL_HEAD.
           rm -rf .github/workflows
           mkdir -p .github/workflows
           cp /tmp/bootstrap-android-build.yml .github/workflows/android-build.yml
@@ -76,10 +77,10 @@ jobs:
           grep -q 'Moataz AI' README.md
           test -f ai/src/main/java/me/rerere/ai/provider/ApiKeyPool.kt
           test -f app/src/main/res/drawable/moataz_ai_mark.xml
-          test -z "$(git diff HEAD -- .github/workflows)"
+          test -z "$(git diff "$ORIGINAL_HEAD" -- .github/workflows)"
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "feat: establish Moataz AI v0.1 source"
-          git push origin main
+          git push origin HEAD:main
