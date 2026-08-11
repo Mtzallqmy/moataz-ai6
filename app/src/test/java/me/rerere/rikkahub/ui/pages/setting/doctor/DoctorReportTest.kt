@@ -27,7 +27,7 @@ class DoctorReportTest {
 
     @Test fun `default header is used when none supplied`() {
         val out = DoctorReport.format(emptyList())
-        assertTrue(out.startsWith("RikkaHub-agent — diagnostic report\n"))
+        assertTrue(out.startsWith("Moataz AI — diagnostic report\n"))
     }
 
     @Test fun `summary counts every severity`() {
