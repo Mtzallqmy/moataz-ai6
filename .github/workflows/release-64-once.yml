@@ -1,0 +1,31 @@
+name: Trigger Android Release 64 Once
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/release-64-once.yml"
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Android Release v0.0.64
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run android-release.yml --repo "${{ github.repository }}" --ref main -f tag=v0.0.64
+
+      - name: Remove one-shot trigger workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SHA="$(gh api "repos/${{ github.repository }}/contents/.github/workflows/release-64-once.yml?ref=main" --jq .sha)"
+          gh api -X DELETE "repos/${{ github.repository }}/contents/.github/workflows/release-64-once.yml" \
+            -f message='chore: remove one-shot release 64 trigger' \
+            -f sha="$SHA" \
+            -f branch=main
