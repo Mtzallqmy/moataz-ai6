@@ -1,0 +1,176 @@
+name: Android Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag, e.g. v0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      MOATAZ_KEYSTORE_BASE64: ${{ secrets.MOATAZ_KEYSTORE_BASE64 }}
+      MOATAZ_KEYSTORE_PASSWORD: ${{ secrets.MOATAZ_KEYSTORE_PASSWORD }}
+      MOATAZ_KEY_ALIAS: ${{ secrets.MOATAZ_KEY_ALIAS }}
+      MOATAZ_KEY_PASSWORD: ${{ secrets.MOATAZ_KEY_PASSWORD }}
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Resolve tag
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ inputs.tag || github.ref_name }}"
+          case "$TAG" in v[0-9]*.[0-9]*.[0-9]*) ;; *) echo "Invalid release tag: $TAG" >&2; exit 1;; esac
+          VERSION_NAME="${TAG#v}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION_NAME"
+          if ! [[ "$MAJOR" =~ ^[0-9]+$ && "$MINOR" =~ ^[0-9]+$ && "$PATCH" =~ ^[0-9]+$ ]]; then
+            echo "Tag must be a plain semantic version such as v0.1.0" >&2
+            exit 1
+          fi
+          if (( MINOR >= 1000 || PATCH >= 1000 )); then
+            echo "minor and patch components must be below 1000 for Android versionCode mapping" >&2
+            exit 1
+          fi
+          VERSION_CODE=$((10#$MAJOR * 1000000 + 10#$MINOR * 1000 + 10#$PATCH))
+          if (( VERSION_CODE < 1 || VERSION_CODE > 2100000000 )); then
+            echo "Calculated Android versionCode is out of range: $VERSION_CODE" >&2
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout tag
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.version.outputs.tag }}
+          submodules: recursive
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: >-
+            platform-tools
+            platforms;android-37
+            build-tools;36.0.0
+            cmake;3.22.1
+            ndk;28.2.13676358
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10
+          run_install: false
+
+      - name: Install Web UI dependencies
+        working-directory: web-ui
+        run: pnpm install --frozen-lockfile
+
+      - name: Web UI typecheck
+        working-directory: web-ui
+        run: pnpm run typecheck
+
+      - name: Configure release signing
+        id: signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "$MOATAZ_KEYSTORE_BASE64" && -n "$MOATAZ_KEYSTORE_PASSWORD" && -n "$MOATAZ_KEY_ALIAS" && -n "$MOATAZ_KEY_PASSWORD" ]]; then
+            mkdir -p .ci
+            printf '%s' "$MOATAZ_KEYSTORE_BASE64" | base64 --decode > .ci/moataz-release.jks
+            {
+              printf 'storeFile=%s\n' "$GITHUB_WORKSPACE/.ci/moataz-release.jks"
+              printf 'storePassword=%s\n' "$MOATAZ_KEYSTORE_PASSWORD"
+              printf 'keyAlias=%s\n' "$MOATAZ_KEY_ALIAS"
+              printf 'keyPassword=%s\n' "$MOATAZ_KEY_PASSWORD"
+            } > local.properties
+            chmod 600 .ci/moataz-release.jks local.properties
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Unit tests
+        run: ./gradlew --no-daemon :ai:testDebugUnitTest :app:testDebugUnitTest
+
+      - name: Build release
+        run: >-
+          ./gradlew --no-daemon
+          -PMOATAZ_VERSION_NAME=${{ steps.version.outputs.name }}
+          -PMOATAZ_VERSION_CODE=${{ steps.version.outputs.code }}
+          :app:assembleRelease :app:bundleRelease
+
+      - name: Prepare release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-artifacts
+          APK="$(find app/build/outputs/apk/release -type f -name '*universal*.apk' -print -quit)"
+          if [[ -z "$APK" ]]; then APK="$(find app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"; fi
+          AAB="$(find app/build/outputs/bundle/release -type f -name '*.aab' -print -quit)"
+          [[ -n "$APK" ]] || { echo 'Release APK not found' >&2; exit 1; }
+          [[ -n "$AAB" ]] || { echo 'Release AAB not found' >&2; exit 1; }
+          if [[ "${{ steps.signing.outputs.signed }}" == "true" ]]; then
+            cp "$APK" "release-artifacts/moataz-ai-${{ steps.version.outputs.tag }}.apk"
+            cp "$AAB" "release-artifacts/moataz-ai-${{ steps.version.outputs.tag }}.aab"
+          else
+            cp "$APK" "release-artifacts/moataz-ai-${{ steps.version.outputs.tag }}-unsigned.apk"
+            cp "$AAB" "release-artifacts/moataz-ai-${{ steps.version.outputs.tag }}-unsigned.aab"
+          fi
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: moataz-ai-${{ steps.version.outputs.tag }}
+          path: release-artifacts/*
+          if-no-files-found: error
+
+      - name: Create or update GitHub Release
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.version.outputs.tag }}"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --title "Moataz AI $TAG" --generate-notes
+          fi
+          gh release upload "$TAG" release-artifacts/* --clobber
+
+      - name: Clean signing material
+        if: always()
+        run: rm -rf .ci local.properties
