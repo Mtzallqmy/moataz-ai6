@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Rikkahub" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/moataz_ai_mark</item>
+        <item name="android:windowSplashScreenBackground">#061C52</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">#061C52</item>
+    </style>
+</resources>
