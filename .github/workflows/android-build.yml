@@ -2,77 +2,127 @@ name: Android Build
 
 on:
   push:
-    branches: [main]
+    branches: ["**"]
+  pull_request:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: moataz-bootstrap-import
-  cancel-in-progress: false
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  bootstrap-import:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Checkout bootstrap payload
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+    timeout-minutes: 90
+    env:
+      JAVA_VERSION: "17"
+      MOATAZ_KEYSTORE_BASE64: ${{ secrets.MOATAZ_KEYSTORE_BASE64 }}
+      MOATAZ_KEYSTORE_PASSWORD: ${{ secrets.MOATAZ_KEYSTORE_PASSWORD }}
+      MOATAZ_KEY_ALIAS: ${{ secrets.MOATAZ_KEY_ALIAS }}
+      MOATAZ_KEY_PASSWORD: ${{ secrets.MOATAZ_KEY_PASSWORD }}
 
-      - name: Verify audited payload
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: >-
+            platform-tools
+            platforms;android-37
+            build-tools;36.0.0
+            cmake;3.22.1
+            ndk;28.2.13676358
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10
+          run_install: false
+
+      - name: Install Web UI dependencies
+        working-directory: web-ui
+        run: pnpm install --frozen-lockfile
+
+      - name: Web UI typecheck
+        working-directory: web-ui
+        run: pnpm run typecheck
+
+      - name: Configure release signing
+        if: >-
+          env.MOATAZ_KEYSTORE_BASE64 != '' &&
+          env.MOATAZ_KEYSTORE_PASSWORD != '' &&
+          env.MOATAZ_KEY_ALIAS != '' &&
+          env.MOATAZ_KEY_PASSWORD != ''
         shell: bash
         run: |
           set -euo pipefail
-          cat .bootstrap/patch/patch-* > /tmp/moataz.patch.xz.b64
-          base64 -d /tmp/moataz.patch.xz.b64 > /tmp/moataz.patch.xz
-          echo "d1f7dcd82ac05c50cc759245ca9b7b615ef3928b1450f8e12cd418484cef967a  /tmp/moataz.patch.xz" | sha256sum -c -
-          xz -dc /tmp/moataz.patch.xz > /tmp/moataz.patch
-          cat .bootstrap/patch/dispatcher-* > /tmp/dispatcher.kt.xz.b64
-          base64 -d /tmp/dispatcher.kt.xz.b64 > /tmp/dispatcher.kt.xz
-          echo "9978488a3f5fc67fa953d6473df96a8ef3c827565edc5f692cdeda4b32f5ddeb  /tmp/dispatcher.kt.xz" | sha256sum -c -
-          xz -dc /tmp/dispatcher.kt.xz > /tmp/ExternalAutomationDispatcher.kt
-          cat .bootstrap/patch/newfiles-* > /tmp/moataz-new-files.tar.xz.b64
-          base64 -d /tmp/moataz-new-files.tar.xz.b64 > /tmp/moataz-new-files.tar.xz
-          echo "85136c5d476db32b57e8fdeb2ed23b8e01e56520f329485acbbc869980ae0598  /tmp/moataz-new-files.tar.xz" | sha256sum -c -
-          tar -tJf /tmp/moataz-new-files.tar.xz >/dev/null
+          mkdir -p .ci
+          printf '%s' "$MOATAZ_KEYSTORE_BASE64" | base64 --decode > .ci/moataz-release.jks
+          {
+            printf 'storeFile=%s\n' "$GITHUB_WORKSPACE/.ci/moataz-release.jks"
+            printf 'storePassword=%s\n' "$MOATAZ_KEYSTORE_PASSWORD"
+            printf 'keyAlias=%s\n' "$MOATAZ_KEY_ALIAS"
+            printf 'keyPassword=%s\n' "$MOATAZ_KEY_PASSWORD"
+          } > local.properties
+          chmod 600 .ci/moataz-release.jks local.properties
 
-      - name: Import audited Moataz AI source tree
-        shell: bash
-        run: |
-          set -euxo pipefail
-          BASE=f8be99dc67888bedcbb837a190e5f8200f77ab8e
-          ORIGINAL_HEAD=$(git rev-parse HEAD)
+      - name: Unit tests
+        run: ./gradlew --no-daemon :ai:testDebugUnitTest :app:testDebugUnitTest
 
-          git show "$ORIGINAL_HEAD":.github/workflows/android-build.yml > /tmp/bootstrap-android-build.yml
-          git show "$ORIGINAL_HEAD":.github/workflows/bootstrap-import.yml > /tmp/bootstrap-import.yml
-          git remote add upstream https://github.com/ExTV/rikkahub-agent.git 2>/dev/null || git remote set-url upstream https://github.com/ExTV/rikkahub-agent.git
-          git fetch --no-tags upstream "$BASE"
+      - name: Build Debug APK
+        run: ./gradlew --no-daemon :app:assembleDebug
 
-          git checkout --detach "$BASE"
-          git reset --soft "$ORIGINAL_HEAD"
-          git apply --check /tmp/moataz.patch
-          git apply /tmp/moataz.patch
-          rm -f app/src/main/res/mipmap-{h,m,x,xx,xxx}dpi/ic_launcher*.png docs/icon.png || true
-          cp /tmp/ExternalAutomationDispatcher.kt app/src/main/java/me/rerere/rikkahub/automation/ExternalAutomationDispatcher.kt
-          tar -xJf /tmp/moataz-new-files.tar.xz
+      - name: Build Release APK and AAB
+        run: ./gradlew --no-daemon :app:assembleRelease :app:bundleRelease
 
-          rm -rf .github/workflows
-          mkdir -p .github/workflows
-          cp /tmp/bootstrap-android-build.yml .github/workflows/android-build.yml
-          cp /tmp/bootstrap-import.yml .github/workflows/bootstrap-import.yml
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: moataz-ai-debug-apk
+          path: app/build/outputs/apk/debug/**/*.apk
+          if-no-files-found: error
 
-          grep -q 'applicationId = "ai.moataz"' app/build.gradle.kts
-          grep -q 'rootProject.name = "moataz-ai"' settings.gradle.kts
-          grep -q 'Moataz AI' README.md
-          test -f ai/src/main/java/me/rerere/ai/provider/ApiKeyPool.kt
-          test -f app/src/main/res/drawable/moataz_ai_mark.xml
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: moataz-ai-release-apk
+          path: app/build/outputs/apk/release/**/*.apk
+          if-no-files-found: error
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git status --short
-          git commit -m "feat: establish Moataz AI v0.1 source"
-          git push origin HEAD:main
+      - name: Upload Release AAB
+        uses: actions/upload-artifact@v7
+        with:
+          name: moataz-ai-release-aab
+          path: app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+
+      - name: Clean signing material
+        if: always()
+        run: rm -rf .ci local.properties
