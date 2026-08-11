@@ -2,8 +2,8 @@ name: Bootstrap Moataz AI
 
 on:
   push:
-    paths:
-      - ".github/workflows/bootstrap-import.yml"
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -12,6 +12,7 @@ permissions:
 
 jobs:
   import:
+    if: ${{ !contains(github.event.head_commit.message, 'feat: establish Moataz AI v0.1') }}
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
