@@ -212,10 +212,20 @@ jobs:
           set -euo pipefail
           TAG="${{ steps.version.outputs.tag }}"
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" \
-              --target "$GITHUB_SHA" \
-              --title "Moataz AI $TAG" \
-              --notes "Moataz AI for Android 8.0+ (minSdk 26). Direct-download APK is arm64-v8a. If production signing secrets are not configured, the APK is CI-install signed for direct installation; configure the MOATAZ signing secrets before relying on in-place upgrades between releases."
+            if [[ "${{ github.event_name }}" == "push" ]]; then
+              # The tag already exists on tag-push runs. Avoid resolving a moving branch target.
+              gh release create "$TAG" \
+                --verify-tag \
+                --title "Moataz AI $TAG" \
+                --notes "Moataz AI for Android 8.0+ (minSdk 26). Direct-download APK is arm64-v8a."
+            else
+              # Manual releases are anchored to the current default branch so GITHUB_TOKEN does
+              # not need the unavailable Workflows-write permission when workflow files changed.
+              gh release create "$TAG" \
+                --target main \
+                --title "Moataz AI $TAG" \
+                --notes "Moataz AI for Android 8.0+ (minSdk 26). Direct-download APK is arm64-v8a. If production signing secrets are not configured, uninstall an older build signed with another key before installing this APK."
+            fi
           fi
           gh release upload "$TAG" release-artifacts/* --clobber
 
