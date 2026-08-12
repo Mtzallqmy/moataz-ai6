@@ -70,6 +70,7 @@ import me.rerere.hugeicons.stroke.Sun01
 import me.rerere.hugeicons.stroke.WavingHand01
 import me.rerere.rikkahub.R
 import me.rerere.rikkahub.Screen
+import me.rerere.rikkahub.data.datastore.ExperienceMode
 import me.rerere.rikkahub.data.datastore.isNotConfigured
 import me.rerere.rikkahub.data.files.FilesManager
 import me.rerere.rikkahub.ui.components.nav.BackButton
@@ -168,6 +169,36 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                     title = { Text(stringResource(R.string.setting_page_general_settings)) },
                 ) {
                     item(
+                        trailingContent = {
+                            Select(
+                                options = ExperienceMode.entries,
+                                selectedOption = settings.experienceMode,
+                                onOptionSelected = { mode ->
+                                    vm.updateSettings(settings.copy(experienceMode = mode))
+                                },
+                                optionToString = { mode ->
+                                    when (mode) {
+                                        ExperienceMode.AUTO -> stringResource(R.string.experience_mode_auto)
+                                        ExperienceMode.PRO -> stringResource(R.string.experience_mode_pro)
+                                    }
+                                },
+                                modifier = Modifier.width(150.dp),
+                            )
+                        },
+                        headlineContent = { Text(stringResource(R.string.experience_mode_title)) },
+                        supportingContent = {
+                            Text(
+                                stringResource(
+                                    if (settings.experienceMode == ExperienceMode.AUTO) {
+                                        R.string.experience_mode_auto_desc
+                                    } else {
+                                        R.string.experience_mode_pro_desc
+                                    }
+                                )
+                            )
+                        },
+                    )
+                    item(
                         leadingContent = { Icon(HugeIcons.Sun01, null) },
                         trailingContent = {
                             Select(
@@ -206,12 +237,14 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                         supportingContent = { Text(stringResource(R.string.setting_page_assistant_desc)) },
                         headlineContent = { Text(stringResource(R.string.setting_page_assistant)) },
                     )
-                    item(
-                        onClick = { navController.navigate(Screen.Extensions) },
-                        leadingContent = { Icon(HugeIcons.Package, null) },
-                        supportingContent = { Text(stringResource(R.string.setting_page_extensions_desc)) },
-                        headlineContent = { Text(stringResource(R.string.setting_page_extensions)) },
-                    )
+                    if (settings.experienceMode == ExperienceMode.PRO) {
+                        item(
+                            onClick = { navController.navigate(Screen.Extensions) },
+                            leadingContent = { Icon(HugeIcons.Package, null) },
+                            supportingContent = { Text(stringResource(R.string.setting_page_extensions_desc)) },
+                            headlineContent = { Text(stringResource(R.string.setting_page_extensions)) },
+                        )
+                    }
                 }
             }
 
@@ -226,6 +259,7 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                         supportingContent = { Text(stringResource(R.string.setting_page_default_model_desc)) },
                         headlineContent = { Text(stringResource(R.string.setting_page_default_model)) },
                     )
+                    if (settings.experienceMode == ExperienceMode.PRO) {
                     item(
                         onClick = { navController.navigate(Screen.SettingProvider) },
                         leadingContent = { Icon(HugeIcons.Brain02, null) },
@@ -250,12 +284,14 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                         supportingContent = { Text(stringResource(R.string.setting_page_mcp_desc)) },
                         headlineContent = { Text(stringResource(R.string.setting_page_mcp)) },
                     )
+                    }
                     item(
                         onClick = { navController.navigate(Screen.SettingGitHub) },
                         leadingContent = { Icon(HugeIcons.Connect, null) },
                         supportingContent = { Text(stringResource(R.string.setting_github_settings_desc)) },
                         headlineContent = { Text(stringResource(R.string.setting_github_title)) },
                     )
+                    if (settings.experienceMode == ExperienceMode.PRO) {
                     item(
                         onClick = { navController.navigate(Screen.SettingWeb) },
                         leadingContent = { Icon(HugeIcons.ServerStack01, null) },
@@ -322,6 +358,7 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
                         supportingContent = { Text(stringResource(R.string.setting_page_permissions_desc)) },
                         headlineContent = { Text(stringResource(R.string.setting_page_permissions)) },
                     )
+                    }
                 }
             }
 
