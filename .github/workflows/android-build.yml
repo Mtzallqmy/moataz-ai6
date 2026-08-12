@@ -98,7 +98,7 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p .ci-logs
-          ./gradlew --no-daemon --stacktrace :ai:testDebugUnitTest :app:testDebugUnitTest 2>&1 | tee .ci-logs/unit-tests.log
+          ./gradlew --no-daemon --stacktrace :ai:testDebugUnitTest :document:testDebugUnitTest :app:testDebugUnitTest 2>&1 | tee .ci-logs/unit-tests.log
 
       - name: Upload test diagnostics
         if: failure()
@@ -108,6 +108,7 @@ jobs:
           path: |
             .ci-logs/unit-tests.log
             ai/build/reports/tests/**
+            document/build/reports/tests/**
             app/build/reports/tests/**
           if-no-files-found: warn
           retention-days: 7
