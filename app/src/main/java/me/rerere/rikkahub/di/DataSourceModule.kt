@@ -280,6 +280,12 @@ val dataSourceModule = module {
         )
     }
     single { me.rerere.rikkahub.data.source.github.GitHubRepositorySource(get()) }
+    single {
+        me.rerere.rikkahub.data.source.github.GitHubConnectionManager(
+            httpClient = get(named("github")),
+            credentialStore = get(),
+        )
+    }
     single { me.rerere.rikkahub.data.ai.tools.SourceToolRouter(get()) }
 
     single<OkHttpClient>(named("codex")) {
