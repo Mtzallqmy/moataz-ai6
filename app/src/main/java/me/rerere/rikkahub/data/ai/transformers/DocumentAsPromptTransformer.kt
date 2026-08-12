@@ -6,83 +6,64 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import me.rerere.ai.ui.UIMessage
 import me.rerere.ai.ui.UIMessagePart
-import me.rerere.document.DocxParser
-import me.rerere.document.EpubParser
-import me.rerere.document.PdfParser
-import me.rerere.document.PptxParser
-import java.io.File
+import me.rerere.rikkahub.data.source.document.LocalDocumentSource
+import me.rerere.rikkahub.data.ai.tools.documentRouteId
 
+/**
+ * Adds a compact document preview to the prompt while preserving the original attachment part.
+ * Large documents are no longer dumped wholesale into every provider request; the model can use
+ * `documents_list` / `document_read` for bounded windows through SourceToolRouter.
+ */
 object DocumentAsPromptTransformer : InputMessageTransformer {
     override suspend fun transform(
         ctx: TransformerContext,
         messages: List<UIMessage>,
-    ): List<UIMessage> {
-        return withContext(Dispatchers.IO) {
-            messages.map { message ->
-                message.copy(
-                    parts = message.parts.toMutableList().apply {
-                        val documents = filterIsInstance<UIMessagePart.Document>()
-                        if (documents.isNotEmpty()) {
-                            documents.forEach { document ->
-                                val content = readDocumentContent(document)
-                                val path = resolveWorkspacePath(document)
-                                val pathAttr = path?.let { " path=\"$it\"" } ?: ""
-                                val prompt = """
-                                  <UploadFile name="${document.fileName}"$pathAttr>
-                                  ```
-                                  $content
-                                  ```
-                                  </UploadFile>
-                                  """.trimMargin()
-                                add(0, UIMessagePart.Text(prompt))
+    ): List<UIMessage> = withContext(Dispatchers.IO) {
+        messages.map { message ->
+            message.copy(
+                parts = message.parts.toMutableList().apply {
+                    val documents = filterIsInstance<UIMessagePart.Document>()
+                    documents.forEach { document ->
+                        val prompt = runCatching {
+                            val preview = LocalDocumentSource.promptPreview(document)
+                            val path = resolveWorkspacePath(document)
+                            val pathAttr = path?.let { " path=\"$it\"" } ?: ""
+                            val documentId = documentRouteId(document)
+                            buildString {
+                                append("<UploadFile name=\"")
+                                append(document.fileName)
+                                append("\" document_id=\"")
+                                append(documentId)
+                                append("\"")
+                                append(pathAttr)
+                                append(" total_lines=\"")
+                                append(preview.totalLines)
+                                append("\" total_characters=\"")
+                                append(preview.totalCharacters)
+                                appendLine("\">")
+                                appendLine("```")
+                                appendLine(preview.content)
+                                appendLine("```")
+                                if (preview.truncated) {
+                                    appendLine("[Preview only. Use document_read with document_id=$documentId for additional line windows.]")
+                                }
+                                append("</UploadFile>")
                             }
+                        }.getOrElse {
+                            "<UploadFile name=\"${document.fileName}\">[ERROR, failed to read file: ${it.message}]</UploadFile>"
                         }
+                        add(0, UIMessagePart.Text(prompt))
                     }
-                )
-            }
+                }
+            )
         }
     }
 
-    private fun parsePdfAsText(file: File): String {
-        return PdfParser.parserPdf(file)
-    }
-
-    private fun parseDocxAsText(file: File): String {
-        return DocxParser.parse(file)
-    }
-
-    private fun parsePptxAsText(file: File): String {
-        return PptxParser.parse(file)
-    }
-
-    private fun parseEpubAsText(file: File): String {
-        return EpubParser.parse(file)
-    }
-
-    // 上传文件保存在 filesDir/upload 下, 该目录通过 proot 挂载到 workspace 的 /upload
-    // 返回文件在 workspace 内的绝对路径, 便于 AI 用 workspace 工具直接读取原始文件
+    // Uploaded files are mounted into workspaces at /upload. Preserve this hint so an agent with
+    // workspace tools can still manipulate the original binary file when appropriate.
     private fun resolveWorkspacePath(document: UIMessagePart.Document): String? {
         val file = runCatching { document.url.toUri().toFile() }.getOrNull() ?: return null
         if (file.parentFile?.name != "upload") return null
         return "/upload/${file.name}"
-    }
-
-    private fun readDocumentContent(document: UIMessagePart.Document): String {
-        val file = runCatching { document.url.toUri().toFile() }.getOrNull()
-            ?: return "[ERROR, invalid file uri: ${document.fileName}]"
-        if (!file.exists() || !file.isFile) {
-            return "[ERROR, file not found: ${document.fileName}]"
-        }
-        return runCatching {
-            when (document.mime) {
-                "application/pdf" -> parsePdfAsText(file)
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> parseDocxAsText(file)
-                "application/vnd.openxmlformats-officedocument.presentationml.presentation" -> parsePptxAsText(file)
-                "application/epub+zip" -> parseEpubAsText(file)
-                else -> file.readText()
-            }
-        }.getOrElse {
-            "[ERROR, failed to read file: ${document.fileName}]"
-        }
     }
 }
