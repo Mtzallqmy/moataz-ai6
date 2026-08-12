@@ -1,0 +1,67 @@
+diff --git a/app/src/main/java/me/rerere/rikkahub/RouteActivity.kt b/app/src/main/java/me/rerere/rikkahub/RouteActivity.kt
+index 2b53fb2..ff361e7 100644
+--- a/app/src/main/java/me/rerere/rikkahub/RouteActivity.kt
++++ b/app/src/main/java/me/rerere/rikkahub/RouteActivity.kt
+@@ -118,6 +118,7 @@ import me.rerere.rikkahub.ui.pages.setting.SettingPreferencesUIPage
+ import me.rerere.rikkahub.ui.pages.setting.SettingThemePage
+ import me.rerere.rikkahub.ui.pages.setting.SettingDonatePage
+ import me.rerere.rikkahub.ui.pages.setting.SettingFilesPage
++import me.rerere.rikkahub.ui.pages.setting.SettingGitHubPage
+ import me.rerere.rikkahub.ui.pages.setting.SettingMcpPage
+ import me.rerere.rikkahub.ui.pages.setting.SettingModelPage
+ import me.rerere.rikkahub.ui.pages.setting.SettingPage
+@@ -519,6 +520,10 @@ class RouteActivity : ComponentActivity() {
+                                 SettingFilesPage()
+                             }
+ 
++                            entry<Screen.SettingGitHub> {
++                                SettingGitHubPage()
++                            }
++
+                             entry<Screen.SettingWeb> {
+                                 SettingWebPage()
+                             }
+@@ -768,6 +773,9 @@ sealed interface Screen : NavKey {
+     @Serializable
+     data object SettingModels : Screen
+ 
++    @Serializable
++    data object SettingGitHub : Screen
++
+     @Serializable
+     data object SettingAbout : Screen
+ 
+diff --git a/app/src/main/java/me/rerere/rikkahub/di/DataSourceModule.kt b/app/src/main/java/me/rerere/rikkahub/di/DataSourceModule.kt
+index fc93469..fbe403d 100644
+--- a/app/src/main/java/me/rerere/rikkahub/di/DataSourceModule.kt
++++ b/app/src/main/java/me/rerere/rikkahub/di/DataSourceModule.kt
+@@ -280,6 +280,12 @@ val dataSourceModule = module {
+         )
+     }
+     single { me.rerere.rikkahub.data.source.github.GitHubRepositorySource(get()) }
++    single {
++        me.rerere.rikkahub.data.source.github.GitHubConnectionManager(
++            httpClient = get(named("github")),
++            credentialStore = get(),
++        )
++    }
+     single { me.rerere.rikkahub.data.ai.tools.SourceToolRouter(get()) }
+ 
+     single<OkHttpClient>(named("codex")) {
+diff --git a/app/src/main/java/me/rerere/rikkahub/ui/pages/setting/SettingPage.kt b/app/src/main/java/me/rerere/rikkahub/ui/pages/setting/SettingPage.kt
+index d3e0bc1..1bb26dd 100644
+--- a/app/src/main/java/me/rerere/rikkahub/ui/pages/setting/SettingPage.kt
++++ b/app/src/main/java/me/rerere/rikkahub/ui/pages/setting/SettingPage.kt
+@@ -250,6 +250,12 @@ fun SettingPage(vm: SettingVM = koinViewModel()) {
+                         supportingContent = { Text(stringResource(R.string.setting_page_mcp_desc)) },
+                         headlineContent = { Text(stringResource(R.string.setting_page_mcp)) },
+                     )
++                    item(
++                        onClick = { navController.navigate(Screen.SettingGitHub) },
++                        leadingContent = { Icon(HugeIcons.Connect, null) },
++                        supportingContent = { Text(stringResource(R.string.setting_github_settings_desc)) },
++                        headlineContent = { Text(stringResource(R.string.setting_github_title)) },
++                    )
+                     item(
+                         onClick = { navController.navigate(Screen.SettingWeb) },
+                         leadingContent = { Icon(HugeIcons.ServerStack01, null) },
