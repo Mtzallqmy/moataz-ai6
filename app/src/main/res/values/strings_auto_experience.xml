@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="experience_mode_title">Experience mode</string>
+    <string name="experience_mode_auto">Auto</string>
+    <string name="experience_mode_pro">Pro</string>
+    <string name="experience_mode_auto_desc">A simpler workspace. Moataz AI selects and exposes tools only when your task needs them.</string>
+    <string name="experience_mode_pro_desc">Show providers, MCP, browser, terminal, workflows and advanced controls.</string>
+
+    <string name="agent_runtime_preparing">Preparing sources</string>
+    <string name="agent_runtime_planning">Planning tools</string>
+    <string name="agent_runtime_executing">Executing</string>
+    <string name="agent_runtime_verifying">Verifying results</string>
+    <string name="agent_runtime_waiting_approval">Waiting for your approval</string>
+    <string name="agent_runtime_completed">Completed</string>
+    <string name="agent_runtime_failed">Execution failed</string>
+    <string name="agent_runtime_cancelled">Cancelled</string>
+    <string name="agent_runtime_tools_count">%1$d tools ready</string>
+</resources>

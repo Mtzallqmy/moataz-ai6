@@ -15,7 +15,10 @@ class RequestLoggingInterceptor : Interceptor {
         val request = chain.request()
         val startTime = System.currentTimeMillis()
 
-        val requestHeaders = request.headers.toMap()
+        // Request logging is a diagnostics feature, not a credential export surface. Keep useful
+        // protocol metadata while replacing authentication/cookie headers before they reach disk
+        // or any UI that renders LogEntry.RequestLog.
+        val requestHeaders = request.headers.toRedactedMap()
         val requestBody = request.body?.let { body ->
             val buffer = Buffer()
             body.writeTo(buffer)
@@ -36,14 +39,14 @@ class RequestLoggingInterceptor : Interceptor {
                     method = request.method,
                     requestHeaders = requestHeaders,
                     requestBody = requestBody,
-                    error = error
+                    error = error,
                 )
             )
             throw e
         }
 
         val durationMs = System.currentTimeMillis() - startTime
-        val responseHeaders = response.headers.toMap()
+        val responseHeaders = response.headers.toRedactedMap()
 
         Logging.logRequest(
             LogEntry.RequestLog(
@@ -55,14 +58,38 @@ class RequestLoggingInterceptor : Interceptor {
                 responseCode = response.code,
                 responseHeaders = responseHeaders,
                 durationMs = durationMs,
-                error = error
+                error = error,
             )
         )
 
         return response
     }
 
-    private fun okhttp3.Headers.toMap(): Map<String, String> {
-        return names().associateWith { get(it) ?: "" }
+    private fun okhttp3.Headers.toRedactedMap(): Map<String, String> {
+        return names().associateWith { name ->
+            if (isSensitiveHeader(name)) REDACTED else get(name).orEmpty()
+        }
+    }
+
+    private fun isSensitiveHeader(name: String): Boolean {
+        val normalized = name.lowercase()
+        return normalized in SENSITIVE_HEADERS ||
+            normalized.contains("api-key") ||
+            normalized.endsWith("-token") ||
+            normalized.endsWith("-secret")
+    }
+
+    private companion object {
+        const val REDACTED = "██"
+        val SENSITIVE_HEADERS = setOf(
+            "authorization",
+            "proxy-authorization",
+            "cookie",
+            "set-cookie",
+            "api-key",
+            "x-api-key",
+            "x-goog-api-key",
+            "cf-access-client-secret",
+        )
     }
 }

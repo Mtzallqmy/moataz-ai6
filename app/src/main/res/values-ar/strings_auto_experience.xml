@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="experience_mode_title">وضع التجربة</string>
+    <string name="experience_mode_auto">تلقائي</string>
+    <string name="experience_mode_pro">احترافي</string>
+    <string name="experience_mode_auto_desc">واجهة أبسط. يختار معتز AI الأدوات والمصادر ويُظهرها فقط عندما تحتاجها المهمة.</string>
+    <string name="experience_mode_pro_desc">إظهار المزوّدات وMCP والمتصفح والطرفية وسير العمل وأدوات التحكم المتقدمة.</string>
+
+    <string name="agent_runtime_preparing">تحضير المصادر</string>
+    <string name="agent_runtime_planning">تخطيط الأدوات</string>
+    <string name="agent_runtime_executing">تنفيذ المهمة</string>
+    <string name="agent_runtime_verifying">التحقق من النتائج</string>
+    <string name="agent_runtime_waiting_approval">بانتظار موافقتك</string>
+    <string name="agent_runtime_completed">اكتمل</string>
+    <string name="agent_runtime_failed">تعذر التنفيذ</string>
+    <string name="agent_runtime_cancelled">أُلغي</string>
+    <string name="agent_runtime_tools_count">%1$d أداة جاهزة</string>
+</resources>

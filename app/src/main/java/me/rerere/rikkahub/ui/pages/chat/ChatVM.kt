@@ -73,6 +73,8 @@ class ChatVM(
         chatService
             .getProcessingStatusFlow(_conversationId)
 
+    val agentRuntimeState = chatService.getAgentRuntimeState(_conversationId)
+
     val conversationJobs = chatService
         .getConversationJobs()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())

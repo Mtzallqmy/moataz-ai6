@@ -70,6 +70,7 @@ import me.rerere.hugeicons.stroke.LeftToRightListBullet
 import me.rerere.hugeicons.stroke.Menu03
 import me.rerere.hugeicons.stroke.MessageAdd01
 import me.rerere.rikkahub.R
+import me.rerere.rikkahub.data.ai.runtime.AgentRuntimeState
 import me.rerere.rikkahub.data.datastore.Settings
 import me.rerere.rikkahub.data.datastore.findProvider
 import me.rerere.rikkahub.data.datastore.getCurrentAssistant
@@ -79,6 +80,7 @@ import me.rerere.rikkahub.data.model.Assistant
 import me.rerere.rikkahub.data.model.Conversation
 import me.rerere.rikkahub.data.repository.WorkspaceRepository
 import me.rerere.rikkahub.service.ChatError
+import me.rerere.rikkahub.ui.components.ai.AgentRuntimeStatusBar
 import me.rerere.rikkahub.ui.components.ai.ChatInput
 import me.rerere.rikkahub.ui.components.ai.FilesPicker
 import me.rerere.rikkahub.ui.components.ai.completion.WorkspaceCompletionProvider
@@ -117,6 +119,7 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
     val conversation by vm.conversation.collectAsStateWithLifecycle()
     val loadingJob by vm.conversationJob.collectAsStateWithLifecycle()
     val processingStatus by vm.processingStatus.collectAsStateWithLifecycle()
+    val agentRuntimeState by vm.agentRuntimeState.collectAsStateWithLifecycle()
     val currentChatModel by vm.currentChatModel.collectAsStateWithLifecycle()
     val enableWebSearch by vm.enableWebSearch.collectAsStateWithLifecycle()
     val errors by vm.errors.collectAsStateWithLifecycle()
@@ -212,6 +215,7 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
                     inputState = inputState,
                     loadingJob = loadingJob,
                     processingStatus = processingStatus,
+                    runtimeState = agentRuntimeState,
                     setting = setting,
                     conversation = conversation,
                     drawerState = drawerState,
@@ -244,6 +248,7 @@ fun ChatPage(id: Uuid, text: String?, files: List<Uri>, nodeId: Uuid? = null) {
                     inputState = inputState,
                     loadingJob = loadingJob,
                     processingStatus = processingStatus,
+                    runtimeState = agentRuntimeState,
                     setting = setting,
                     conversation = conversation,
                     drawerState = drawerState,
@@ -270,6 +275,7 @@ private fun ChatPageContent(
     inputState: ChatInputState,
     loadingJob: Job?,
     processingStatus: String? = null,
+    runtimeState: AgentRuntimeState,
     setting: Settings,
     bigScreen: Boolean,
     conversation: Conversation,
@@ -331,6 +337,11 @@ private fun ChatPageContent(
                 )
             },
             bottomBar = {
+                Column {
+                AgentRuntimeStatusBar(
+                    state = runtimeState,
+                    experienceMode = setting.experienceMode,
+                )
                 ChatInput(
                     state = inputState,
                     loading = loadingJob != null,
@@ -417,6 +428,7 @@ private fun ChatPageContent(
                         showFilesSheet = true
                     },
                 )
+                }
             },
             containerColor = Color.Transparent,
         ) { innerPadding ->

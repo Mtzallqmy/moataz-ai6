@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setting_github_title">GitHub</string>
+    <string name="setting_github_settings_desc">Connect private repositories securely; public repository links work without setup.</string>
+    <string name="setting_github_connection">Connected source</string>
+    <string name="setting_github_status">Connection status</string>
+    <string name="setting_github_checking">Checking GitHub…</string>
+    <string name="setting_github_disconnected">Not connected</string>
+    <string name="setting_github_connected_as">Connected as %1$s</string>
+    <string name="setting_github_invalid">Saved credential is no longer valid</string>
+    <string name="setting_github_security_note">Public repositories need no token. For private repositories, the token is verified directly with GitHub and encrypted with Android Keystore. It is never added to prompts, tool arguments, or request logs.</string>
+    <string name="setting_github_token_label">Fine-grained personal access token</string>
+    <string name="setting_github_token_help">Use a fine-grained token limited to selected repositories with Contents: read access.</string>
+    <string name="setting_github_connect">Connect GitHub</string>
+    <string name="setting_github_disconnect">Disconnect</string>
+    <string name="setting_github_pat_recommendation">Recommended scope: only the repositories you need, with read-only Contents permission. Do not use a classic token unless you have a specific compatibility requirement.</string>
+</resources>

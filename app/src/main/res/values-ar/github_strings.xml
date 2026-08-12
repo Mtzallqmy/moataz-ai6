@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setting_github_title">GitHub</string>
+    <string name="setting_github_settings_desc">اربط المستودعات الخاصة بأمان، أما روابط المستودعات العامة فتعمل بلا إعداد.</string>
+    <string name="setting_github_connection">المصدر المتصل</string>
+    <string name="setting_github_status">حالة الاتصال</string>
+    <string name="setting_github_checking">جارٍ التحقق من GitHub…</string>
+    <string name="setting_github_disconnected">غير متصل</string>
+    <string name="setting_github_connected_as">متصل بالحساب %1$s</string>
+    <string name="setting_github_invalid">بيانات الاتصال المحفوظة لم تعد صالحة</string>
+    <string name="setting_github_security_note">المستودعات العامة لا تحتاج توكناً. للمستودعات الخاصة يتحقق Moataz AI من التوكن مباشرةً مع GitHub ثم يحفظه مشفراً عبر Android Keystore، ولا يضيفه أبداً إلى المحادثة أو معاملات الأدوات أو سجلات الطلبات.</string>
+    <string name="setting_github_token_label">Fine-grained personal access token</string>
+    <string name="setting_github_token_help">استخدم توكناً دقيق الصلاحيات مقيداً بالمستودعات المطلوبة وبصلاحية Contents للقراءة فقط.</string>
+    <string name="setting_github_connect">ربط GitHub</string>
+    <string name="setting_github_disconnect">قطع الاتصال</string>
+    <string name="setting_github_pat_recommendation">النطاق الموصى به: المستودعات التي تحتاجها فقط، مع صلاحية قراءة Contents. لا تستخدم Classic token إلا لحاجة توافق محددة.</string>
+</resources>

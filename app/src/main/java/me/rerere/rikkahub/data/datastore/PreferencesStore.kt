@@ -66,6 +66,11 @@ enum class AutoCompactionThresholdMode {
     TOKENS,
 }
 
+enum class ExperienceMode {
+    AUTO,
+    PRO,
+}
+
 /** Default automatic compaction summary target as a percentage of the active context. */
 const val DEFAULT_CONTEXT_COMPACTION_TARGET_PERCENT = 1
 
@@ -129,6 +134,7 @@ class SettingsStore(
         val CUSTOM_THEMES = stringPreferencesKey("custom_themes")
         val DISPLAY_SETTING = stringPreferencesKey("display_setting")
         val DEVELOPER_MODE = booleanPreferencesKey("developer_mode")
+        val EXPERIENCE_MODE = stringPreferencesKey("experience_mode")
 
         // 模型选择
         val FAVORITE_MODELS = stringPreferencesKey("favorite_models")
@@ -296,6 +302,9 @@ class SettingsStore(
                     }
                 } ?: emptyList(),
                 developerMode = preferences[DEVELOPER_MODE] == true,
+                experienceMode = preferences[EXPERIENCE_MODE]
+                    ?.let { value -> runCatching { ExperienceMode.valueOf(value) }.getOrNull() }
+                    ?: ExperienceMode.AUTO,
                 displaySetting = runCatching {
                     JsonInstant.decodeFromString<DisplaySetting>(preferences[DISPLAY_SETTING] ?: "{}")
                 }.getOrElse {
@@ -588,6 +597,7 @@ class SettingsStore(
             preferences[THEME_ID] = settings.themeId
             preferences[CUSTOM_THEMES] = JsonInstant.encodeToString(settings.customThemes)
             preferences[DEVELOPER_MODE] = settings.developerMode
+            preferences[EXPERIENCE_MODE] = settings.experienceMode.name
             preferences[DISPLAY_SETTING] = JsonInstant.encodeToString(settings.displaySetting)
 
             preferences[FAVORITE_MODELS] = JsonInstant.encodeToString(settings.favoriteModels)
@@ -782,6 +792,7 @@ data class Settings(
     val themeId: String = PresetThemes[0].id,
     val customThemes: List<CustomTheme> = emptyList(),
     val developerMode: Boolean = false,
+    val experienceMode: ExperienceMode = ExperienceMode.AUTO,
     val displaySetting: DisplaySetting = DisplaySetting(),
     val favoriteModels: List<Uuid> = emptyList(),
     val chatModelId: Uuid = Uuid.random(),

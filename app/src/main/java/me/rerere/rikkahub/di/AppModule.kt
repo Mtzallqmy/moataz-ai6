@@ -235,6 +235,16 @@ val appModule = module {
     single { me.rerere.llamacpp.LlamaCppRuntime() }
 
     single {
+        me.rerere.rikkahub.data.ai.runtime.AgentRuntime(
+            localTools = get(),
+            sourceToolRouter = get(),
+            mcpManager = get(),
+            skillManager = get(),
+            workspaceRepository = get(),
+        )
+    }
+
+    single {
         ChatService(
             context = get(),
             appScope = get(),
@@ -246,9 +256,9 @@ val appModule = module {
             templateTransformer = get(),
             providerManager = get(),
             localTools = get(),
+            agentRuntime = get(),
             mcpManager = get(),
             filesManager = get(),
-            skillManager = get(),
             toolApprovalPreferences = get(),
             workspaceRepository = get(),
             folderRepository = get()
