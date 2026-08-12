@@ -241,6 +241,14 @@ val dataSourceModule = module {
                 // Debug-only so release builds never leak provider keys to logcat.
                 if (BuildConfig.DEBUG) {
                     addInterceptor(HttpLoggingInterceptor().apply {
+                        redactHeader("Authorization")
+                        redactHeader("Proxy-Authorization")
+                        redactHeader("Cookie")
+                        redactHeader("Set-Cookie")
+                        redactHeader("api-key")
+                        redactHeader("x-api-key")
+                        redactHeader("x-goog-api-key")
+                        redactHeader("cf-access-client-secret")
                         level = HttpLoggingInterceptor.Level.HEADERS
                     })
                 }
