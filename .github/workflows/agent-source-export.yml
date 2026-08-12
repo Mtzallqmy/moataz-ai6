@@ -27,12 +27,12 @@ jobs:
             --exclude=.gradle \
             --exclude='**/build' \
             --exclude='node_modules' \
-            -czf moataz-ai-source.tar.gz .
+            -czf "$RUNNER_TEMP/moataz-ai-source.tar.gz" .
 
       - name: Upload source snapshot
         uses: actions/upload-artifact@v7
         with:
           name: moataz-ai-source-snapshot
-          path: moataz-ai-source.tar.gz
+          path: ${{ runner.temp }}/moataz-ai-source.tar.gz
           if-no-files-found: error
           retention-days: 1
