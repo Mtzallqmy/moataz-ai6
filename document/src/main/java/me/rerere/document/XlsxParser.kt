@@ -1,10 +1,14 @@
 package me.rerere.document
 
-import org.xmlpull.v1.XmlPullParser
-import org.xmlpull.v1.XmlPullParserFactory
+import org.xml.sax.Attributes
+import org.xml.sax.InputSource
+import org.xml.sax.SAXException
+import org.xml.sax.helpers.DefaultHandler
 import java.io.File
 import java.io.InputStream
+import java.io.StringReader
 import java.util.zip.ZipFile
+import javax.xml.parsers.SAXParserFactory
 
 /**
  * Lightweight XLSX text extractor with no spreadsheet runtime dependency.
@@ -12,6 +16,9 @@ import java.util.zip.ZipFile
  * It intentionally extracts values rather than reproducing Excel formatting. The result is
  * Markdown-friendly TSV grouped by worksheet, which is substantially cheaper for an LLM to read.
  * Limits protect the app from pathological workbooks and zip-bomb-like entries.
+ *
+ * SAX is used instead of XmlPullParserFactory so the same parser works in Android runtime and in
+ * plain JVM unit tests without relying on a platform-specific XmlPull implementation.
  */
 object XlsxParser {
     private const val MAX_SHEETS = 100
@@ -59,89 +66,141 @@ object XlsxParser {
         require(size < 0 || size <= MAX_ENTRY_BYTES) { "XLSX entry is too large: $name" }
     }
 
-    private fun parser(stream: InputStream): XmlPullParser = XmlPullParserFactory.newInstance().run {
-        isNamespaceAware = true
-        newPullParser().also { it.setInput(stream, "UTF-8") }
-    }
-
     private fun parseSharedStrings(stream: InputStream): List<String> {
-        val parser = parser(stream)
-        val strings = mutableListOf<String>()
-        var current: StringBuilder? = null
-        while (parser.eventType != XmlPullParser.END_DOCUMENT) {
-            when (parser.eventType) {
-                XmlPullParser.START_TAG -> when (parser.name) {
-                    "si" -> current = StringBuilder()
-                    "t" -> current?.append(readText(parser))
-                }
-                XmlPullParser.END_TAG -> if (parser.name == "si") {
-                    strings += current?.toString().orEmpty()
-                    current = null
-                }
-            }
-            parser.next()
-        }
-        return strings
+        val handler = SharedStringsHandler()
+        parseXml(stream, handler)
+        return handler.values
     }
 
     private fun parseWorksheet(stream: InputStream, sharedStrings: List<String>, out: StringBuilder) {
-        val parser = parser(stream)
-        var rows = 0
-        while (parser.eventType != XmlPullParser.END_DOCUMENT && rows < MAX_ROWS_PER_SHEET && out.length < MAX_OUTPUT_CHARS) {
-            if (parser.eventType == XmlPullParser.START_TAG && parser.name == "row") {
-                val cells = parseRow(parser, sharedStrings)
-                if (cells.isNotEmpty()) {
-                    val maxColumn = cells.keys.maxOrNull() ?: 0
-                    out.appendLine((0..maxColumn).joinToString("\t") { cells[it].orEmpty() })
-                } else {
-                    out.appendLine()
+        val handler = WorksheetHandler(sharedStrings, out)
+        try {
+            parseXml(stream, handler)
+        } catch (_: StopParsing) {
+            // Expected bounded early-exit once row/output limits are reached.
+        }
+        if (handler.rows >= MAX_ROWS_PER_SHEET) {
+            out.appendLine("[Worksheet truncated to $MAX_ROWS_PER_SHEET rows]")
+        }
+    }
+
+    private fun parseXml(stream: InputStream, handler: DefaultHandler) {
+        val factory = SAXParserFactory.newInstance().apply {
+            isNamespaceAware = true
+            runCatching { setFeature("http://javax.xml.XMLConstants/feature/secure-processing", true) }
+            runCatching { setFeature("http://apache.org/xml/features/disallow-doctype-decl", true) }
+            runCatching { setFeature("http://xml.org/sax/features/external-general-entities", false) }
+            runCatching { setFeature("http://xml.org/sax/features/external-parameter-entities", false) }
+        }
+        val reader = factory.newSAXParser().xmlReader
+        runCatching { reader.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false) }
+        runCatching { reader.setFeature("http://xml.org/sax/features/external-general-entities", false) }
+        runCatching { reader.setFeature("http://xml.org/sax/features/external-parameter-entities", false) }
+        reader.entityResolver = org.xml.sax.EntityResolver { _, _ -> InputSource(StringReader("")) }
+        reader.contentHandler = handler
+        reader.parse(InputSource(stream))
+    }
+
+    private class SharedStringsHandler : DefaultHandler() {
+        val values = mutableListOf<String>()
+        private var current: StringBuilder? = null
+        private var readingText = false
+
+        override fun startElement(uri: String?, localName: String?, qName: String?, attributes: Attributes?) {
+            when (nameOf(localName, qName)) {
+                "si" -> current = StringBuilder()
+                "t" -> if (current != null) readingText = true
+            }
+        }
+
+        override fun characters(ch: CharArray, start: Int, length: Int) {
+            if (readingText) current?.append(ch, start, length)
+        }
+
+        override fun endElement(uri: String?, localName: String?, qName: String?) {
+            when (nameOf(localName, qName)) {
+                "t" -> readingText = false
+                "si" -> {
+                    values += current?.toString().orEmpty()
+                    current = null
                 }
-                rows++
-            }
-            parser.next()
-        }
-        if (rows >= MAX_ROWS_PER_SHEET) out.appendLine("[Worksheet truncated to $MAX_ROWS_PER_SHEET rows]")
-    }
-
-    private fun parseRow(parser: XmlPullParser, sharedStrings: List<String>): Map<Int, String> {
-        val rowDepth = parser.depth
-        val cells = linkedMapOf<Int, String>()
-        while (parser.next() != XmlPullParser.END_DOCUMENT) {
-            if (parser.eventType == XmlPullParser.START_TAG && parser.name == "c") {
-                val ref = parser.getAttributeValue(null, "r").orEmpty()
-                val type = parser.getAttributeValue(null, "t")
-                cells[columnIndex(ref)] = parseCell(parser, type, sharedStrings)
-            } else if (parser.eventType == XmlPullParser.END_TAG && parser.name == "row" && parser.depth == rowDepth) {
-                break
             }
         }
-        return cells
     }
 
-    private fun parseCell(parser: XmlPullParser, type: String?, sharedStrings: List<String>): String {
-        val cellDepth = parser.depth
-        var value = ""
-        val inline = StringBuilder()
-        while (parser.next() != XmlPullParser.END_DOCUMENT) {
-            if (parser.eventType == XmlPullParser.START_TAG) {
-                when (parser.name) {
-                    "v" -> value = readText(parser)
-                    "t" -> if (type == "inlineStr") inline.append(readText(parser))
+    private class WorksheetHandler(
+        private val sharedStrings: List<String>,
+        private val out: StringBuilder,
+    ) : DefaultHandler() {
+        var rows: Int = 0
+            private set
+
+        private var cells = linkedMapOf<Int, String>()
+        private var cellColumn = 0
+        private var cellType: String? = null
+        private val value = StringBuilder()
+        private val inline = StringBuilder()
+        private var readingValue = false
+        private var readingInlineText = false
+
+        override fun startElement(uri: String?, localName: String?, qName: String?, attributes: Attributes?) {
+            when (nameOf(localName, qName)) {
+                "row" -> cells = linkedMapOf()
+                "c" -> {
+                    cellColumn = columnIndex(attributes?.getValue("r").orEmpty())
+                    cellType = attributes?.getValue("t")
+                    value.setLength(0)
+                    inline.setLength(0)
                 }
-            } else if (parser.eventType == XmlPullParser.END_TAG && parser.name == "c" && parser.depth == cellDepth) {
-                break
+                "v" -> readingValue = true
+                "t" -> if (cellType == "inlineStr") readingInlineText = true
             }
         }
-        return when (type) {
-            "s" -> value.toIntOrNull()?.let(sharedStrings::getOrNull).orEmpty()
-            "b" -> if (value == "1") "TRUE" else "FALSE"
-            "inlineStr" -> inline.toString()
-            else -> value
-        }.replace('\t', ' ').replace('\r', ' ').replace('\n', ' ')
+
+        override fun characters(ch: CharArray, start: Int, length: Int) {
+            when {
+                readingValue -> value.append(ch, start, length)
+                readingInlineText -> inline.append(ch, start, length)
+            }
+        }
+
+        override fun endElement(uri: String?, localName: String?, qName: String?) {
+            when (nameOf(localName, qName)) {
+                "v" -> readingValue = false
+                "t" -> readingInlineText = false
+                "c" -> cells[cellColumn] = resolveCell(cellType, value.toString(), inline.toString(), sharedStrings)
+                "row" -> {
+                    appendRow(cells, out)
+                    rows++
+                    if (rows >= MAX_ROWS_PER_SHEET || out.length >= MAX_OUTPUT_CHARS) throw StopParsing()
+                }
+            }
+        }
     }
 
-    private fun readText(parser: XmlPullParser): String =
-        if (parser.next() == XmlPullParser.TEXT) parser.text.orEmpty() else ""
+    private fun appendRow(cells: Map<Int, String>, out: StringBuilder) {
+        if (cells.isEmpty()) {
+            out.appendLine()
+            return
+        }
+        val maxColumn = cells.keys.maxOrNull() ?: 0
+        out.appendLine((0..maxColumn).joinToString("\t") { cells[it].orEmpty() })
+    }
+
+    private fun resolveCell(
+        type: String?,
+        value: String,
+        inline: String,
+        sharedStrings: List<String>,
+    ): String = when (type) {
+        "s" -> value.trim().toIntOrNull()?.let(sharedStrings::getOrNull).orEmpty()
+        "b" -> if (value.trim() == "1") "TRUE" else "FALSE"
+        "inlineStr" -> inline
+        else -> value
+    }.replace('\t', ' ').replace('\r', ' ').replace('\n', ' ')
+
+    private fun nameOf(localName: String?, qName: String?): String =
+        localName?.takeIf { it.isNotEmpty() } ?: qName.orEmpty().substringAfter(':')
 
     private fun columnIndex(cellReference: String): Int {
         var value = 0
@@ -153,4 +212,6 @@ object XlsxParser {
         }
         return if (found) (value - 1).coerceAtLeast(0) else 0
     }
+
+    private class StopParsing : SAXException()
 }
