@@ -15,7 +15,7 @@ import me.rerere.rikkahub.data.source.github.GitHubRepositorySource
  * This is the first narrow seam of the broader Auto runtime. Additional sources (local documents,
  * workspaces, remote files) should plug in here rather than adding more branches to ChatService.
  */
-internal class SourceToolRouter(
+class SourceToolRouter(
     private val gitHubRepositorySource: GitHubRepositorySource,
 ) {
     fun toolsFor(messages: List<UIMessage>): List<Tool> = buildList {
