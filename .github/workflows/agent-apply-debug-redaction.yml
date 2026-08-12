@@ -1,0 +1,39 @@
+name: Debug Log Redaction
+
+on:
+  push:
+    branches:
+      - agent/arabic-auto-ui
+    paths:
+      - .agent/apply_debug_log_redaction.py
+      - .github/workflows/agent-apply-debug-redaction.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Apply redaction
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .agent/apply_debug_log_redaction.py
+          rm .agent/apply_debug_log_redaction.py
+          rmdir .agent 2>/dev/null || true
+          rm .github/workflows/agent-apply-debug-redaction.yml
+          git diff --check
+      - name: Commit redaction
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "security: redact credentials from debug HTTP logs"
+          git push origin HEAD:agent/arabic-auto-ui
