@@ -963,17 +963,6 @@ class ChatService(
             // reset suggestions
             updateConversation(conversationId, initialConversation.copy(chatSuggestions = emptyList()))
 
-            // memory tool
-            if (!model.abilities.contains(ModelAbility.TOOL)) {
-                if (assistant.enableWebSearch || mcpManager.getAllAvailableTools().isNotEmpty()) {
-                    addError(
-                        IllegalStateException(context.getString(R.string.tools_warning)),
-                        conversationId,
-                        title = context.getString(R.string.error_title_tool_unavailable)
-                    )
-                }
-            }
-
             // check invalid messages
             checkInvalidMessages(conversationId)
             val conversation = getConversationFlow(conversationId).value
@@ -1018,6 +1007,18 @@ class ChatService(
                     ),
                     error,
                 )
+            }
+            val toolsForGeneration = if (model.abilities.contains(ModelAbility.TOOL)) {
+                runtimePlan.tools
+            } else {
+                if (runtimePlan.tools.isNotEmpty()) {
+                    addError(
+                        IllegalStateException(context.getString(R.string.tools_warning)),
+                        conversationId,
+                        title = context.getString(R.string.error_title_tool_unavailable),
+                    )
+                }
+                emptyList()
             }
 
             generationHandler.generateText(
@@ -1137,7 +1138,7 @@ class ChatService(
                     add(workspaceReminderTransformer)
                 },
                 outputTransformers = outputTransformers,
-                tools = runtimePlan.tools,
+                tools = toolsForGeneration,
             ).onCompletion { completionCause ->
                 // 取消 Live Update 通知
                 cancelLiveUpdateNotification(conversationId)
