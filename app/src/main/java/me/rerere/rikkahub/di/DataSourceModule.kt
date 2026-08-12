@@ -248,6 +248,40 @@ val dataSourceModule = module {
             .build().also { SearchService.init(it, get()) }
     }
 
+    // Repository credentials must never pass through the general AI client: in debug builds that
+    // client logs HTTP headers. Keep GitHub traffic on an isolated, non-logging client.
+    single<OkHttpClient>(named("github")) {
+        OkHttpClient.Builder()
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .followSslRedirects(true)
+            .followRedirects(true)
+            .retryOnConnectionFailure(true)
+            .addInterceptor { chain ->
+                chain.proceed(
+                    chain.request().newBuilder()
+                        .header(HttpHeaders.UserAgent, "MoatazAI-Android/${BuildConfig.VERSION_NAME}")
+                        .build()
+                )
+            }
+            .build()
+    }
+
+    single { me.rerere.rikkahub.data.source.github.GitHubCredentialStore(get()) }
+    single<me.rerere.rikkahub.data.source.github.GitHubCredentialProvider> {
+        val store = get<me.rerere.rikkahub.data.source.github.GitHubCredentialStore>()
+        me.rerere.rikkahub.data.source.github.GitHubCredentialProvider { store.read().accessToken }
+    }
+    single {
+        me.rerere.rikkahub.data.source.github.GitHubRepositoryClient(
+            httpClient = get(named("github")),
+            credentialProvider = get(),
+        )
+    }
+    single { me.rerere.rikkahub.data.source.github.GitHubRepositorySource(get()) }
+    single { me.rerere.rikkahub.data.ai.tools.SourceToolRouter(get()) }
+
     single<OkHttpClient>(named("codex")) {
         OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)

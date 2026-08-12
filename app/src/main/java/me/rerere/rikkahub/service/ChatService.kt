@@ -72,6 +72,7 @@ import me.rerere.rikkahub.data.ai.CompactedMessageView
 import me.rerere.rikkahub.data.ai.ContextCompactionView
 import me.rerere.rikkahub.data.ai.mcp.McpManager
 import me.rerere.rikkahub.data.ai.tools.LocalTools
+import me.rerere.rikkahub.data.ai.tools.SourceToolRouter
 import me.rerere.rikkahub.data.ai.tools.createSearchTools
 import me.rerere.rikkahub.data.ai.tools.createSkillTools
 import me.rerere.rikkahub.data.ai.tools.createWorkspaceTools
@@ -222,6 +223,7 @@ class ChatService(
     private val templateTransformer: TemplateTransformer,
     private val providerManager: ProviderManager,
     private val localTools: LocalTools,
+    private val sourceToolRouter: SourceToolRouter,
     val mcpManager: McpManager,
     private val filesManager: FilesManager,
     private val skillManager: SkillManager,
@@ -1109,6 +1111,10 @@ class ChatService(
                     if (assistant.enableWebSearch) {
                         addAll(createSearchTools(settings))
                     }
+                    // Auto source routing: expose repository/document readers only when the
+                    // current context references a matching source. This avoids permanent tool
+                    // schema overhead in ordinary chats.
+                    addAll(sourceToolRouter.toolsFor(messagesForGeneration))
                     // Pass the caller context so context-aware tools (subagent_dispatch
                     // recursion guard, workflow_create authoring-id) can read the
                     // calling conversation + assistant. isHeadless is read from

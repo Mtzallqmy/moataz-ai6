@@ -246,6 +246,7 @@ val appModule = module {
             templateTransformer = get(),
             providerManager = get(),
             localTools = get(),
+            sourceToolRouter = get(),
             mcpManager = get(),
             filesManager = get(),
             skillManager = get(),
