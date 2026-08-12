@@ -181,33 +181,31 @@ internal object LocalDocumentSource {
 
     private data class ParsedDocument(val text: String, val lines: List<String>)
 
-    companion object {
-        const val DEFAULT_WINDOW_LINES = 300
-        const val MAX_WINDOW_LINES = 500
-        const val PROMPT_PREVIEW_CHARS = 12_000
-        const val INLINE_FULL_TEXT_CHARS = 24_000
-        const val MAX_PARSED_CHARS = 2_000_000
-        const val MAX_SOURCE_FILE_BYTES = 64L * 1024 * 1024
-        const val DEFAULT_SEARCH_LIMIT = 8
-        const val MAX_SEARCH_LIMIT = 20
-        private const val SEARCH_CONTEXT_LINES = 1
-        private const val CACHE_ENTRIES = 12
-        private val TEXT_MIME_TYPES = setOf(
-            "application/json",
-            "application/ld+json",
-            "application/xml",
-            "application/javascript",
-            "application/x-javascript",
-            "application/x-yaml",
-            "application/toml",
-        )
-        private val TEXT_EXTENSIONS = setOf(
-            "txt", "md", "markdown", "csv", "tsv", "json", "jsonl", "xml", "yaml", "yml", "toml",
-            "kt", "kts", "java", "js", "jsx", "ts", "tsx", "py", "rb", "go", "rs", "swift", "c", "h",
-            "cpp", "hpp", "cs", "php", "sh", "bash", "zsh", "fish", "sql", "html", "htm", "css", "scss",
-            "gradle", "properties", "ini", "conf", "log",
-        )
-    }
+    const val DEFAULT_WINDOW_LINES = 300
+    const val MAX_WINDOW_LINES = 500
+    const val PROMPT_PREVIEW_CHARS = 12_000
+    const val INLINE_FULL_TEXT_CHARS = 24_000
+    const val MAX_PARSED_CHARS = 2_000_000
+    const val MAX_SOURCE_FILE_BYTES = 64L * 1024 * 1024
+    const val DEFAULT_SEARCH_LIMIT = 8
+    const val MAX_SEARCH_LIMIT = 20
+    private const val SEARCH_CONTEXT_LINES = 1
+    private const val CACHE_ENTRIES = 12
+    private val TEXT_MIME_TYPES = setOf(
+        "application/json",
+        "application/ld+json",
+        "application/xml",
+        "application/javascript",
+        "application/x-javascript",
+        "application/x-yaml",
+        "application/toml",
+    )
+    private val TEXT_EXTENSIONS = setOf(
+        "txt", "md", "markdown", "csv", "tsv", "json", "jsonl", "xml", "yaml", "yml", "toml",
+        "kt", "kts", "java", "js", "jsx", "ts", "tsx", "py", "rb", "go", "rs", "swift", "c", "h",
+        "cpp", "hpp", "cs", "php", "sh", "bash", "zsh", "fish", "sql", "html", "htm", "css", "scss",
+        "gradle", "properties", "ini", "conf", "log",
+    )
 }
 
 internal data class LocalDocumentInspection(
